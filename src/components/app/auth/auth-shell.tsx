@@ -1,3 +1,5 @@
+// Keeps authentication pages visually consistent while letting each page supply its own form and footer content.
+
 import { GlassBackground } from "@/components/app/background/glass-background";
 import { SecureNotesLogo } from "@/components/app/brand/secure-notes-logo";
 
