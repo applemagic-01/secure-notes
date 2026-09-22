@@ -1,27 +1,44 @@
 import { hashShareToken } from "@/lib/share/token";
 import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@/generated/prisma/client";
 
-export async function findShareByToken(token: string) {
+export async function findShareByToken(token: string, db: PrismaClient = prisma,) {
     const tokenHash = hashShareToken(token);
 
-    return prisma.shareLink.findUnique({
+    return db.shareLink.findUnique({
         where: {
             tokenHash,
         },
-        include: {
-            note: {
-                select: {
-                    id: true,
-                    title: true,
-                    content: true,
-                },
-            },
+        select: {
+            id: true,
+            noteId: true,
+            shareType: true,
+            accessType: true,
+            passwordHash: true,
+            expiresAt: true,
+            revokedAt: true,
+            usedAt: true,
+            viewCount: true,
+            createdAt: true,
+            updatedAt: true,
         },
     });
 }
 
-export async function consumeOneTimeShare(shareId: string) {
-    return prisma.$transaction(async (tx) => {
+export async function getSharedNote(noteId: string, db: PrismaClient = prisma,) {
+    return db.note.findUnique({
+        where: {
+            id: noteId,
+        },
+        select: {
+            title: true,
+            content: true,
+        },
+    });
+}
+
+export async function consumeOneTimeShare(shareId: string, db: PrismaClient = prisma,) {
+    return db.$transaction(async (tx) => {
         const claimed = await tx.shareLink.updateMany({
             where: {
                 id: shareId,
@@ -61,8 +78,8 @@ export async function consumeOneTimeShare(shareId: string) {
 }
 
 
-export async function recordTimeBasedView(shareId: string) {
-    return prisma.$transaction(async (tx) => {
+export async function recordTimeBasedView(shareId: string, db: PrismaClient = prisma,) {
+    return db.$transaction(async (tx) => {
         const now = new Date();
 
         const updated = await tx.shareLink.updateMany({

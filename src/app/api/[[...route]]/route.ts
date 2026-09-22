@@ -18,12 +18,416 @@ import {
 import {
   consumeOneTimeShare,
   findShareByToken,
+  getSharedNote,
   recordTimeBasedView,
 } from "@/lib/share/access";
 
+import { getClientIp } from "@/lib/security/client-ip";
+import {
+  isRateLimited,
+  recordRateLimitFailure,
+} from "@/lib/security/rate-limit";
 
 
-const app = new Hono().basePath("/api");
+
+function registerShareRoutes(
+  app: Hono,
+  db: typeof prisma,
+) {
+  app.get("/share/:token", async (c) => {
+    try {
+      const token = c.req.param("token");
+
+      if (!token) {
+        return c.json(
+          {
+            error: "Invalid share link",
+          },
+          400,
+        );
+      }
+
+      const share = await findShareByToken(token, db);
+
+      if (!share) {
+        return c.json(
+          {
+            error: "Share link not found",
+          },
+          404,
+        );
+      }
+
+      if (share.revokedAt) {
+        return c.json(
+          {
+            error: "Share link has been revoked",
+          },
+          410,
+        );
+      }
+
+      if (share.expiresAt && share.expiresAt <= new Date()) {
+        return c.json(
+          {
+            error: "Share link has expired",
+          },
+          410,
+        );
+      }
+
+      if (share.shareType === "ONE_TIME" && share.usedAt) {
+        return c.json(
+          {
+            error: "Share link has already been used",
+          },
+          410,
+        );
+      }
+
+      return c.json({
+        accessType: share.accessType,
+        shareType: share.shareType,
+        expiresAt: share.expiresAt,
+      });
+    } catch (error) {
+      console.error("Share lookup error:", error);
+
+      return c.json(
+        {
+          error: "Unable to access share link",
+        },
+        500,
+      );
+    }
+  });
+
+  app.post("/share/:token/view", async (c) => {
+    try {
+      const token = c.req.param("token");
+
+      if (!token) {
+        return c.json(
+          {
+            error: "Invalid share link",
+          },
+          400,
+        );
+      }
+
+      const share = await findShareByToken(token, db);
+
+      if (!share) {
+        return c.json(
+          {
+            error: "Share link not found",
+          },
+          404,
+        );
+      }
+
+      if (share.accessType !== "PUBLIC") {
+        return c.json(
+          {
+            error: "This share requires an access key",
+          },
+          403,
+        );
+      }
+
+      if (share.revokedAt) {
+        return c.json(
+          {
+            error: "Share link has been revoked",
+          },
+          410,
+        );
+      }
+
+      if (share.expiresAt && share.expiresAt <= new Date()) {
+        return c.json(
+          {
+            error: "Share link has expired",
+          },
+          410,
+        );
+      }
+
+      if (share.shareType === "ONE_TIME") {
+        const consumed = await consumeOneTimeShare(
+          share.id,
+          db,
+        );
+
+        if (!consumed) {
+          return c.json(
+            {
+              error: "Share link has already been used",
+            },
+            410,
+          );
+        }
+      } else {
+        const recorded = await recordTimeBasedView(
+          share.id,
+          db,
+        );
+
+        if (!recorded) {
+          return c.json(
+            {
+              error: "Share link is no longer available",
+            },
+            410,
+          );
+        }
+      }
+
+      const note = await getSharedNote(
+        share.noteId,
+        db,
+      );
+
+      if (!note) {
+        return c.json(
+          {
+            error: "Shared note not found",
+          },
+          404,
+        );
+      }
+
+      return c.json({
+        accessType: "PUBLIC",
+        shareType: share.shareType,
+        expiresAt: share.expiresAt,
+        note,
+      });
+    } catch (error) {
+      console.error("Share view error:", error);
+
+      return c.json(
+        {
+          error: "Unable to access shared note",
+        },
+        500,
+      );
+    }
+  });
+  app.post("/share/:token/unlock", async (c) => {
+    try {
+      const token = c.req.param("token");
+
+      const clientIp = getClientIp(c);
+
+      const unlockIpRateLimit = isRateLimited(
+        `unlock:ip:${clientIp}`,
+        5,
+        15 * 60 * 1000,
+      );
+
+      if (!token) {
+        return c.json(
+          {
+            error: "Invalid share link",
+          },
+          400,
+        );
+      }
+
+      if (unlockIpRateLimit.limited) {
+        c.header(
+          "Retry-After",
+          String(unlockIpRateLimit.retryAfterSeconds),
+        );
+
+        return c.json(
+          {
+            error: "Too many attempts. Please try again later.",
+          },
+          429,
+        );
+      }
+
+      const share = await findShareByToken(token, db);
+
+
+      const shareRateLimit = isRateLimited(
+        `unlock:share:${hashShareToken(token)}`,
+        10,
+        15 * 60 * 1000,
+      );
+
+
+
+      if (!share) {
+        return c.json(
+          {
+            error: "Share link not found",
+          },
+          404,
+        );
+      }
+
+
+      if (shareRateLimit.limited) {
+        c.header(
+          "Retry-After",
+          String(shareRateLimit.retryAfterSeconds),
+        );
+
+        return c.json(
+          {
+            error: "Too many attempts. Please try again later.",
+          },
+          429,
+        );
+      }
+
+      if (share.revokedAt) {
+        return c.json(
+          {
+            error: "Share link has been revoked",
+          },
+          410,
+        );
+      }
+
+      if (share.expiresAt && share.expiresAt <= new Date()) {
+        return c.json(
+          {
+            error: "Share link has expired",
+          },
+          410,
+        );
+      }
+
+      if (share.shareType === "ONE_TIME" && share.usedAt) {
+        return c.json(
+          {
+            error: "Share link has already been used",
+          },
+          410,
+        );
+      }
+
+      if (share.accessType !== "PASSWORD" || !share.passwordHash) {
+        return c.json(
+          {
+            error: "This share does not require an access key",
+          },
+          400,
+        );
+      }
+
+      const body = await c.req.json();
+
+      const accessKey =
+        typeof body.accessKey === "string"
+          ? body.accessKey
+          : "";
+
+      if (!accessKey) {
+        return c.json(
+          {
+            error: "Access key is required",
+          },
+          400,
+        );
+      }
+
+      const accessKeyIsValid = await verifyAccessKey(
+        accessKey,
+        share.passwordHash,
+      );
+
+      if (!accessKeyIsValid) {
+        recordRateLimitFailure(
+          `unlock:ip:${clientIp}`,
+          15 * 60 * 1000,
+        );
+
+        recordRateLimitFailure(
+          `unlock:share:${hashShareToken(token)}`,
+          15 * 60 * 1000,
+        );
+
+        return c.json(
+          {
+            error: "Invalid access key",
+          },
+          401,
+        );
+      }
+
+
+
+      if (share.shareType === "ONE_TIME") {
+        const consumed = await consumeOneTimeShare(share.id, db);
+
+        if (!consumed) {
+          return c.json(
+            {
+              error: "Share link is no longer available",
+            },
+            410,
+          );
+        }
+      } else {
+        const recorded = await recordTimeBasedView(share.id, db);
+
+        if (!recorded) {
+          return c.json(
+            {
+              error: "Share link is no longer available",
+            },
+            410,
+          );
+        }
+      }
+
+      const note = await getSharedNote(share.noteId,db);
+
+      if (!note) {
+        return c.json(
+          {
+            error: "Shared note not found",
+          },
+          404,
+        );
+      }
+
+      return c.json({
+        note,
+      });
+    } catch (error) {
+      console.error("Share unlock error:", error);
+
+      return c.json(
+        {
+          error: "Unable to unlock share",
+        },
+        500,
+      );
+    }
+  });
+
+}
+
+export const app = new Hono()
+  .basePath("/api");
+
+registerShareRoutes(app, prisma);
+
+export function createShareApp(db: typeof prisma) {
+  const shareApp = new Hono()
+    .basePath("/api");
+
+  registerShareRoutes(shareApp, db);
+
+  return shareApp;
+}
+
 
 app.get("/health", (c) => {
   return c.json({
@@ -32,26 +436,6 @@ app.get("/health", (c) => {
   });
 });
 
-app.get("/db-health", async (c) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-
-    return c.json({
-      status: "ok",
-      database: "connected",
-    });
-  } catch (error) {
-    console.error("Database connection failed:", error);
-
-    return c.json(
-      {
-        status: "error",
-        database: "disconnected",
-      },
-      500,
-    );
-  }
-});
 
 app.post("/auth/register", async (c) => {
   try {
@@ -136,6 +520,36 @@ app.post("/auth/login", async (c) => {
 
     const { email, password } = result.data;
 
+    const clientIp = getClientIp(c);
+
+    const ipRateLimit = isRateLimited(
+      `login:ip:${clientIp}`,
+      5,
+      15 * 60 * 1000,
+    );
+
+    const emailRateLimit = isRateLimited(
+      `login:email:${email}`,
+      5,
+      15 * 60 * 1000,
+    );
+
+    if (ipRateLimit.limited || emailRateLimit.limited) {
+      const retryAfter = Math.max(
+        ipRateLimit.retryAfterSeconds,
+        emailRateLimit.retryAfterSeconds,
+      );
+
+      c.header("Retry-After", String(retryAfter));
+
+      return c.json(
+        {
+          error: "Too many login attempts. Please try again later.",
+        },
+        429,
+      );
+    }
+
     const user = await prisma.user.findUnique({
       where: {
         email,
@@ -143,6 +557,16 @@ app.post("/auth/login", async (c) => {
     });
 
     if (!user) {
+      recordRateLimitFailure(
+        `login:ip:${clientIp}`,
+        15 * 60 * 1000,
+      );
+
+      recordRateLimitFailure(
+        `login:email:${email}`,
+        15 * 60 * 1000,
+      );
+
       return c.json(
         {
           error: "Invalid email or password",
@@ -157,6 +581,16 @@ app.post("/auth/login", async (c) => {
     );
 
     if (!passwordIsValid) {
+      recordRateLimitFailure(
+        `login:ip:${clientIp}`,
+        15 * 60 * 1000,
+      );
+
+      recordRateLimitFailure(
+        `login:email:${email}`,
+        15 * 60 * 1000,
+      );
+
       return c.json(
         {
           error: "Invalid email or password",
@@ -652,9 +1086,20 @@ app.post("/notes/:id/shares", async (c) => {
       },
     });
 
-    const origin = new URL(c.req.url).origin;
+    const appUrl = process.env.APP_URL;
 
-    const shareUrl = `${origin}/share/${rawToken}`;
+    if (!appUrl) {
+      console.error("APP_URL is not configured");
+
+      return c.json(
+        {
+          error: "Unable to create share link",
+        },
+        500,
+      );
+    }
+
+    const shareUrl = `${appUrl.replace(/\/$/, "")}/share/${rawToken}`;
 
     return c.json(
       {
@@ -743,317 +1188,6 @@ app.get("/notes/:id/shares", async (c) => {
   }
 });
 
-app.get("/share/:token", async (c) => {
-  try {
-    const token = c.req.param("token");
-
-    if (!token) {
-      return c.json(
-        {
-          error: "Invalid share link",
-        },
-        400,
-      );
-    }
-
-    const share = await findShareByToken(token);
-
-    if (!share) {
-      return c.json(
-        {
-          error: "Share link not found",
-        },
-        404,
-      );
-    }
-
-    if (share.revokedAt) {
-      return c.json(
-        {
-          error: "Share link has been revoked",
-        },
-        410,
-      );
-    }
-
-    if (
-      share.expiresAt &&
-      share.expiresAt <= new Date()
-    ) {
-      return c.json(
-        {
-          error: "Share link has expired",
-        },
-        410,
-      );
-    }
-
-    if (
-      share.shareType === "ONE_TIME" &&
-      share.usedAt
-    ) {
-      return c.json(
-        {
-          error: "Share link has already been used",
-        },
-        410,
-      );
-    }
-
-    return c.json({
-      accessType: share.accessType,
-      shareType: share.shareType,
-      expiresAt: share.expiresAt,
-    });
-  } catch (error) {
-    console.error("Share lookup error:", error);
-
-    return c.json(
-      {
-        error: "Unable to access share link",
-      },
-      500,
-    );
-  }
-});
-
-
-app.post("/share/:token/view", async (c) => {
-  try {
-    const token = c.req.param("token");
-
-    if (!token) {
-      return c.json(
-        {
-          error: "Invalid share link",
-        },
-        400,
-      );
-    }
-
-    const share = await findShareByToken(token);
-    
-
-    
-    if (!share) {
-      return c.json(
-        {
-          error: "Share link not found",
-        },
-        404,
-      );
-    }
-
-    if (share.accessType !== "PUBLIC") {
-      return c.json(
-        {
-          error: "This share requires an access key",
-        },
-        403,
-      );
-    }
-    
-
-    if (share.revokedAt) {
-      return c.json(
-        {
-          error: "Share link has been revoked",
-        },
-        410,
-      );
-    }
-
-    if (
-      share.expiresAt &&
-      share.expiresAt <= new Date()
-    ) {
-      return c.json(
-        {
-          error: "Share link has expired",
-        },
-        410,
-      );
-    }
-
-    if (share.shareType === "ONE_TIME") {
-      const consumed = await consumeOneTimeShare(
-        share.id,
-      );
-
-      if (!consumed) {
-        return c.json(
-          {
-            error: "Share link has already been used",
-          },
-          410,
-        );
-      }
-    } else {
-      const recorded = await recordTimeBasedView(share.id);
-
-      if (!recorded) {
-        return c.json(
-          {
-            error: "Share link is no longer available",
-          },
-          410,
-        );
-      }
-    }
-
-    return c.json({
-      accessType: "PUBLIC",
-      shareType: share.shareType,
-      expiresAt: share.expiresAt,
-      note: {
-        title: share.note.title,
-        content: share.note.content,
-      },
-    });
-  } catch (error) {
-    console.error("Share view error:", error);
-
-    return c.json(
-      {
-        error: "Unable to access shared note",
-      },
-      500,
-    );
-  }
-});
-
-
-app.post("/share/:token/unlock", async (c) => {
-  try {
-    const token = c.req.param("token");
-
-    if (!token) {
-      return c.json(
-        {
-          error: "Invalid share link",
-        },
-        400,
-      );
-    }
-
-    const share = await findShareByToken(token);
-
-    if (!share) {
-      return c.json(
-        {
-          error: "Share link not found",
-        },
-        404,
-      );
-    }
-
-    if (share.revokedAt) {
-      return c.json(
-        {
-          error: "Share link has been revoked",
-        },
-        410,
-      );
-    }
-
-    if (share.expiresAt && share.expiresAt <= new Date()) {
-      return c.json(
-        {
-          error: "Share link has expired",
-        },
-        410,
-      );
-    }
-
-    if (share.shareType === "ONE_TIME" && share.usedAt) {
-      return c.json(
-        {
-          error: "Share link has already been used",
-        },
-        410,
-      );
-    }
-
-    if (share.accessType !== "PASSWORD" || !share.passwordHash) {
-      return c.json(
-        {
-          error: "This share does not require an access key",
-        },
-        400,
-      );
-    }
-
-    const body = await c.req.json();
-
-    const accessKey =
-      typeof body.accessKey === "string"
-        ? body.accessKey
-        : "";
-
-    if (!accessKey) {
-      return c.json(
-        {
-          error: "Access key is required",
-        },
-        400,
-      );
-    }
-
-    const accessKeyIsValid = await verifyAccessKey(
-      accessKey,
-      share.passwordHash,
-    );
-
-    if (!accessKeyIsValid) {
-      return c.json(
-        {
-          error: "Invalid access key",
-        },
-        401,
-      );
-    }
-
-    if (share.shareType === "ONE_TIME") {
-      const consumed = await consumeOneTimeShare(share.id);
-
-      if (!consumed) {
-        return c.json(
-          {
-            error: "Share link is no longer available",
-          },
-          410,
-        );
-      }
-    } else {
-      const recorded = await recordTimeBasedView(share.id);
-
-      if (!recorded) {
-        return c.json(
-          {
-            error: "Share link is no longer available",
-          },
-          410,
-        );
-      }
-    }
-
-    return c.json({
-      note: {
-        title: share.note.title,
-        content: share.note.content,
-      },
-    });
-  } catch (error) {
-    console.error("Share unlock error:", error);
-
-    return c.json(
-      {
-        error: "Unable to unlock share",
-      },
-      500,
-    );
-  }
-});
 
 
 app.post("/notes/:noteId/shares/:shareId/revoke", async (c) => {
