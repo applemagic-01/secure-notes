@@ -1,5 +1,7 @@
 "use client";
 
+// Gives the owner a deliberate confirmation step before invalidating an active share link.
+
 import {
     AlertTriangle,
     Loader2,
