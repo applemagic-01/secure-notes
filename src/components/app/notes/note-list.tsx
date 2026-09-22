@@ -1,5 +1,7 @@
 "use client";
 
+// Loads the authenticated user's notes and handles search, loading, error, empty, and filtered-result states in one place.
+
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Loader2, Search } from "lucide-react";
 
