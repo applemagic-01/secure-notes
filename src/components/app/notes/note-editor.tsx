@@ -1,5 +1,7 @@
 "use client";
 
+// Shared create/edit form: performs basic client feedback, sends the note to the API, and returns the user to the saved note.
+
 import { FormEvent, useState } from "react";
 import { ArrowLeft, FileText, Loader2, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
