@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-// Keep note limits on the server because client-side validation can be bypassed.\nexport const createNoteSchema = z.object({
+// Keep note limits on the server because client-side validation can be bypassed.
+export const createNoteSchema = z.object({
     title: z
         .string()
         .trim()
@@ -13,7 +14,8 @@ import { z } from "zod";
         .max(100000, "Content must be at most 100,000 characters"),
 });
 
-// PATCH is partial, but an empty update is not useful and is rejected here.\nexport const updateNoteSchema = z
+// PATCH is partial, but an empty update is not useful and is rejected here.
+export const updateNoteSchema = z
     .object({
         title: z
             .string()
