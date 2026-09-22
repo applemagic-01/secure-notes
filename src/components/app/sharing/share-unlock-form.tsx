@@ -1,5 +1,7 @@
 "use client";
 
+// Collects the access key for password-protected shares and submits it to the server for verification.
+
 import { FormEvent, useState } from "react";
 import { KeyRound, Loader2, LockKeyhole } from "lucide-react";
 
