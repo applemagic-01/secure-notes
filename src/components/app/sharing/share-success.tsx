@@ -1,5 +1,7 @@
 "use client";
 
+// Shows the one-time share credentials after creation and provides convenient copy actions without exposing stored secrets.
+
 import { useState } from "react";
 import Link from "next/link";
 
