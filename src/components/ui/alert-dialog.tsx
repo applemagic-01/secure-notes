@@ -1,3 +1,5 @@
+// Shared dialog primitives used for confirmations and other interruptive UI while preserving accessible dialog behavior.
+
 "use client"
 
 import * as React from "react"
