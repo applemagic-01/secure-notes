@@ -1,3 +1,5 @@
+// Lighter glass-surface primitive for controls and smaller grouped pieces of information.
+
 import { cn } from "@/lib/utils";
 
 interface GlassPanelProps {
