@@ -88,6 +88,7 @@ export function ShareForm({ noteId }: ShareFormProps) {
             );
 
             const data = await response.json();
+            console.log("Create share response:", data);
 
             if (!response.ok) {
                 toast.error(
@@ -98,7 +99,7 @@ export function ShareForm({ noteId }: ShareFormProps) {
             }
 
             setCreatedShare({
-                shareUrl: data.shareUrl,
+                shareUrl: data.share.shareUrl,
                 accessKey: data.accessKey,
             });
 

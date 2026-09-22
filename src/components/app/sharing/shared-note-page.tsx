@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     AlertTriangle,
     Clock3,
@@ -13,6 +13,7 @@ import {
 
 import { GlassCard } from "@/components/app/glass/glass-card";
 import { GlassPanel } from "@/components/app/glass/glass-panel";
+import { ShareUnlockForm } from "./share-unlock-form";
 
 type ShareType = "ONE_TIME" | "TIME_BASED";
 type AccessType = "PUBLIC" | "PASSWORD";
@@ -30,7 +31,9 @@ interface ShareResponse {
 interface ShareError {
     error?: string;
 }
-
+const pageClassName =
+    "relative flex min-h-screen items-center justify-center overflow-hidden bg-[#05070d] px-4 py-10 text-white";
+    
 export function SharedNotePage({
     token,
 }: {
@@ -42,7 +45,16 @@ export function SharedNotePage({
     );
     const [error, setError] = useState<string | null>(null);
 
+    const hasLoaded = useRef(false);
+
     useEffect(() => {
+
+        if (hasLoaded.current) {
+            return;
+        }
+
+        hasLoaded.current = true;
+
         async function loadShare() {
             try {
                 const response = await fetch(
@@ -60,6 +72,31 @@ export function SharedNotePage({
                 }
 
                 setShare(data);
+
+                if (data.accessType === "PUBLIC") {
+                    const viewResponse = await fetch(
+                        `/api/share/${token}/view`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                        }
+                    );
+
+                    const viewData: ShareResponse & ShareError =
+                        await viewResponse.json();
+
+                    if (!viewResponse.ok) {
+                        setError(
+                            viewData.error ??
+                            "Unable to open the shared note."
+                        );
+                        return;
+                    }
+
+                    setShare(viewData);
+                }
             } catch {
                 setError(
                     "Something went wrong while opening this share link."
@@ -120,28 +157,29 @@ export function SharedNotePage({
      * Password-protected shares will be handled
      * in the next step.
      */
-    if (share.accessType === "PASSWORD") {
+    if (share.accessType === "PASSWORD" && !share.note) {
         return (
-            <SharePageShell>
-                <GlassCard className="p-8">
-                    <div className="mx-auto flex max-w-md flex-col items-center text-center">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10">
-                            <LockKeyhole className="h-7 w-7 text-amber-300" />
-                        </div>
+            <main className={pageClassName}>
+                {/* Ambient background */}
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                    <div className="absolute left-1/2 top-[-15rem] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-blue-500/10 blur-[120px]" />
 
-                        <h1 className="mt-5 text-xl font-semibold text-white">
-                            Protected note
-                        </h1>
+                    <div className="absolute bottom-[-15rem] left-[-10rem] h-[30rem] w-[30rem] rounded-full bg-violet-500/10 blur-[120px]" />
 
-                        <p className="mt-2 text-sm leading-6 text-white/45">
-                            This note requires an access key.
-                        </p>
-                    </div>
-                </GlassCard>
-            </SharePageShell>
+                    <div className="absolute right-[-10rem] top-1/3 h-[25rem] w-[25rem] rounded-full bg-cyan-500/5 blur-[120px]" />
+                </div>
+
+                <div className="relative z-10 w-full">
+                    <ShareUnlockForm
+                        token={token}
+                        onUnlocked={(data) => {
+                            setShare(data);
+                        }}
+                    />
+                </div>
+            </main>
         );
     }
-
     /*
      * Public shares include the note directly in the
      * GET response, so we can render it immediately.

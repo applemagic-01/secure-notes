@@ -63,9 +63,15 @@ export async function consumeOneTimeShare(shareId: string) {
 
 export async function recordTimeBasedView(shareId: string) {
     return prisma.$transaction(async (tx) => {
-        await tx.shareLink.update({
+        const now = new Date();
+
+        const updated = await tx.shareLink.updateMany({
             where: {
                 id: shareId,
+                revokedAt: null,
+                expiresAt: {
+                    gt: now,
+                },
             },
             data: {
                 viewCount: {
@@ -74,10 +80,16 @@ export async function recordTimeBasedView(shareId: string) {
             },
         });
 
+        if (updated.count !== 1) {
+            return false;
+        }
+
         await tx.viewEvent.create({
             data: {
                 shareLinkId: shareId,
             },
         });
+
+        return true;
     });
 }

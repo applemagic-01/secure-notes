@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { ShareForm } from "@/components/app/sharing/share-form";
 import { AppShell } from "@/components/app/layout/app-shell";
+import { ShareList } from "@/components/app/sharing/share-list";
 
 interface SharePageProps {
     params: Promise<{
@@ -32,6 +33,8 @@ export default async function SharePage({
                 </Link>
 
                 <ShareForm noteId={id} />
+
+                <ShareList noteId={id} />
             </div>
         </AppShell>
     );

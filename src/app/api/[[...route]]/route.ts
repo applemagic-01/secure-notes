@@ -771,7 +771,10 @@ app.get("/share/:token", async (c) => {
       );
     }
 
-    if (share.expiresAt && share.expiresAt <= new Date()) {
+    if (
+      share.expiresAt &&
+      share.expiresAt <= new Date()
+    ) {
       return c.json(
         {
           error: "Share link has expired",
@@ -780,7 +783,10 @@ app.get("/share/:token", async (c) => {
       );
     }
 
-    if (share.shareType === "ONE_TIME" && share.usedAt) {
+    if (
+      share.shareType === "ONE_TIME" &&
+      share.usedAt
+    ) {
       return c.json(
         {
           error: "Share link has already been used",
@@ -789,18 +795,86 @@ app.get("/share/:token", async (c) => {
       );
     }
 
-    if (share.accessType === "PASSWORD") {
-      return c.json({
-        accessType: "PASSWORD",
-        shareType: share.shareType,
-        expiresAt: share.expiresAt,
-      });
+    return c.json({
+      accessType: share.accessType,
+      shareType: share.shareType,
+      expiresAt: share.expiresAt,
+    });
+  } catch (error) {
+    console.error("Share lookup error:", error);
+
+    return c.json(
+      {
+        error: "Unable to access share link",
+      },
+      500,
+    );
+  }
+});
+
+
+app.post("/share/:token/view", async (c) => {
+  try {
+    const token = c.req.param("token");
+
+    if (!token) {
+      return c.json(
+        {
+          error: "Invalid share link",
+        },
+        400,
+      );
+    }
+
+    const share = await findShareByToken(token);
+
+    if (!share) {
+      return c.json(
+        {
+          error: "Share link not found",
+        },
+        404,
+      );
+    }
+
+    if (share.revokedAt) {
+      return c.json(
+        {
+          error: "Share link has been revoked",
+        },
+        410,
+      );
+    }
+
+    if (
+      share.expiresAt &&
+      share.expiresAt <= new Date()
+    ) {
+      return c.json(
+        {
+          error: "Share link has expired",
+        },
+        410,
+      );
     }
 
     if (share.shareType === "ONE_TIME") {
-      const consumed = await consumeOneTimeShare(share.id);
+      const consumed = await consumeOneTimeShare(
+        share.id,
+      );
 
       if (!consumed) {
+        return c.json(
+          {
+            error: "Share link has already been used",
+          },
+          410,
+        );
+      }
+    } else {
+      const recorded = await recordTimeBasedView(share.id);
+
+      if (!recorded) {
         return c.json(
           {
             error: "Share link is no longer available",
@@ -808,8 +882,6 @@ app.get("/share/:token", async (c) => {
           410,
         );
       }
-    } else {
-      await recordTimeBasedView(share.id);
     }
 
     return c.json({
@@ -822,11 +894,11 @@ app.get("/share/:token", async (c) => {
       },
     });
   } catch (error) {
-    console.error("Share lookup error:", error);
+    console.error("Share view error:", error);
 
     return c.json(
       {
-        error: "Unable to access share link",
+        error: "Unable to access shared note",
       },
       500,
     );
@@ -936,7 +1008,16 @@ app.post("/share/:token/unlock", async (c) => {
         );
       }
     } else {
-      await recordTimeBasedView(share.id);
+      const recorded = await recordTimeBasedView(share.id);
+
+      if (!recorded) {
+        return c.json(
+          {
+            error: "Share link is no longer available",
+          },
+          410,
+        );
+      }
     }
 
     return c.json({
@@ -958,75 +1039,61 @@ app.post("/share/:token/unlock", async (c) => {
 });
 
 
-app.post("/notes/:noteId/shares/:token/revoke", async (c) => {
-  try {
-    const sessionToken = getCookie(c, "session");
+app.post("/notes/:noteId/shares/:shareId/revoke", async (c) => {
+  const token = getCookie(c, "session");
 
-    const user = await getAuthenticatedUser(sessionToken);
+  const user = await getAuthenticatedUser(token);
 
-    if (!user) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const noteId = c.req.param("noteId");
-    const rawToken = c.req.param("token");
-
-    if (!rawToken) {
-      return c.json({ error: "Share token is required" }, 400);
-    }
-
-    const tokenHash = hashShareToken(rawToken);
-
-    const share = await prisma.shareLink.findFirst({
-      where: {
-        tokenHash,
-        noteId,
-        note: {
-          userId: user.id,
-        },
-      },
-      select: {
-        id: true,
-        revokedAt: true,
-      },
-    });
-
-    if (!share) {
-      return c.json({ error: "Share link not found" }, 404);
-    }
-
-    if (share.revokedAt) {
-      return c.json(
-        { error: "Share link is already revoked" },
-        409
-      );
-    }
-
-    const revokedShare = await prisma.shareLink.update({
-      where: {
-        id: share.id,
-      },
-      data: {
-        revokedAt: new Date(),
-      },
-      select: {
-        id: true,
-        revokedAt: true,
-      },
-    });
-
-    return c.json({
-      message: "Share link revoked successfully",
-      share: revokedShare,
-    });
-  } catch (error) {
-    console.error("Revoke share error:", error);
-
+  if (!user) {
     return c.json(
-      { error: "Unable to revoke share link" },
-      500
+      { error: "Unauthorized" },
+      401,
     );
   }
+
+  const noteId = c.req.param("noteId");
+  const shareId = c.req.param("shareId");
+
+  const share = await prisma.shareLink.findFirst({
+    where: {
+      id: shareId,
+      noteId,
+      note: {
+        userId: user.id,
+      },
+    },
+  });
+
+  if (!share) {
+    return c.json(
+      { error: "Share link not found" },
+      404,
+    );
+  }
+
+  if (share.revokedAt) {
+    return c.json(
+      { error: "Share link is already revoked" },
+      409,
+    );
+  }
+
+  const revokedShare = await prisma.shareLink.update({
+    where: {
+      id: share.id,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  });
+
+  return c.json({
+    success: true,
+    share: {
+      id: revokedShare.id,
+      revokedAt: revokedShare.revokedAt,
+    },
+  });
 });
 
 

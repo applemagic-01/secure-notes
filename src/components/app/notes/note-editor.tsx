@@ -174,15 +174,15 @@ export function NoteEditor({
                                         setContent(event.target.value)
                                     }
                                     placeholder="Start writing..."
-                                    maxLength={100000}
+                                    maxLength={10000}
                                     required
-                                    rows={16}
+                                    rows={4}
                                     className="w-full resize-y bg-transparent px-4 py-4 text-sm leading-7 text-white outline-none placeholder:text-white/30"
                                 />
                             </GlassPanel>
 
                             <p className="mt-2 text-right text-xs text-white/30">
-                                {content.length}/100,000
+                                {content.length}/10,000
                             </p>
                         </div>
 

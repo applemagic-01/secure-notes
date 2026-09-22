@@ -24,15 +24,12 @@ export default function NotesPage() {
                         </p>
                     </div>
 
-                    <Button
-                        asChild
-                        className="h-11 rounded-xl border border-white/10 bg-gradient-to-r from-blue-500 to-violet-500 px-5 text-white shadow-lg shadow-blue-500/20 hover:from-blue-400 hover:to-violet-400"
+                    <Link
+                        href="/notes/new"
+                        className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm transition hover:bg-white/90"
                     >
-                        <Link href="/notes/new">
-                            <Plus className="mr-2 h-4 w-4" />
-                            New Note
-                        </Link>
-                    </Button>
+                        New Note
+                    </Link>
                 </div>
 
                 <NoteList />
