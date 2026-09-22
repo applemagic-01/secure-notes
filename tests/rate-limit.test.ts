@@ -1,3 +1,5 @@
+// Verifies the rate limiter allows normal traffic and blocks requests once the configured threshold is reached.
+
 import {
     describe,
     expect,
