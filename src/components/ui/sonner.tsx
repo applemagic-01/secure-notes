@@ -1,3 +1,5 @@
+// Thin application wrapper for toast notifications so feedback uses the same visual treatment everywhere.
+
 "use client"
 
 import { useTheme } from "next-themes"
