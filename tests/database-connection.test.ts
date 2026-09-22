@@ -1,3 +1,5 @@
+// Confirms the test environment can reach the configured PostgreSQL database before security behavior is evaluated.
+
 import { describe, expect, it, afterAll } from "vitest";
 import {
     testPrisma,
