@@ -2,7 +2,7 @@ import { hashShareToken } from "@/lib/share/token";
 import { prisma } from "@/lib/prisma";
 import { PrismaClient } from "@/generated/prisma/client";
 
-export async function findShareByToken(token: string, db: PrismaClient = prisma,) {
+// Convert the raw URL token into its database hash before looking it up.\nexport async function findShareByToken(token: string, db: PrismaClient = prisma,) {
     const tokenHash = hashShareToken(token);
 
     return db.shareLink.findUnique({
@@ -25,7 +25,7 @@ export async function findShareByToken(token: string, db: PrismaClient = prisma,
     });
 }
 
-export async function getSharedNote(noteId: string, db: PrismaClient = prisma,) {
+// Only expose the title and content to a shared viewer; owner/session fields stay private.\nexport async function getSharedNote(noteId: string, db: PrismaClient = prisma,) {
     return db.note.findUnique({
         where: {
             id: noteId,
@@ -37,9 +37,9 @@ export async function getSharedNote(noteId: string, db: PrismaClient = prisma,) 
     });
 }
 
-export async function consumeOneTimeShare(shareId: string, db: PrismaClient = prisma,) {
+// This is the concurrency boundary: only one request can atomically claim a one-time link.\nexport async function consumeOneTimeShare(shareId: string, db: PrismaClient = prisma,) {
     return db.$transaction(async (tx) => {
-        const claimed = await tx.shareLink.updateMany({
+        // usedAt, revokedAt, and expiry are checked inside the UPDATE itself.\n        const claimed = await tx.shareLink.updateMany({
             where: {
                 id: shareId,
                 usedAt: null,
@@ -63,7 +63,7 @@ export async function consumeOneTimeShare(shareId: string, db: PrismaClient = pr
             },
         });
 
-        if (claimed.count !== 1) {
+        // Zero rows means another request already won, or the link became invalid.\n        if (claimed.count !== 1) {
             return false;
         }
 
@@ -78,11 +78,11 @@ export async function consumeOneTimeShare(shareId: string, db: PrismaClient = pr
 }
 
 
-export async function recordTimeBasedView(shareId: string, db: PrismaClient = prisma,) {
+// Time-based shares can be viewed repeatedly, but every view must still be valid at update time.\nexport async function recordTimeBasedView(shareId: string, db: PrismaClient = prisma,) {
     return db.$transaction(async (tx) => {
         const now = new Date();
 
-        const updated = await tx.shareLink.updateMany({
+        // Incrementing in the database avoids a read-modify-write lost-update problem.\n        const updated = await tx.shareLink.updateMany({
             where: {
                 id: shareId,
                 revokedAt: null,
