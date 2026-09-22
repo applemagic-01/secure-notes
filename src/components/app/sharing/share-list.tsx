@@ -1,5 +1,7 @@
 "use client";
 
+// Displays the owner's share links and their current lifecycle state, including usage, expiry, and revocation information.
+
 import { useEffect, useState } from "react";
 import {
     CheckCircle2,
