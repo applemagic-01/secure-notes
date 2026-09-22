@@ -1,5 +1,7 @@
 "use client";
 
+// Handles the public share experience: loads share metadata first, then performs the actual view or unlock request so a GET cannot consume a one-time link.
+
 import { useEffect, useRef, useState } from "react";
 import {
     AlertTriangle,
