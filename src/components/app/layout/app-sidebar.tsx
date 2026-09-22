@@ -1,5 +1,7 @@
 "use client";
 
+// Provides workspace navigation and logout behavior while deriving the active route from Next.js navigation state.
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
