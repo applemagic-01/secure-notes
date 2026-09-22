@@ -1,3 +1,5 @@
+// Verifies session creation and validation behavior, including expiry and token handling.
+
 import {
     beforeEach,
     describe,
