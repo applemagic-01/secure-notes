@@ -1,5 +1,7 @@
 "use client";
 
+// Renders the authenticated workspace header and loads the current user only for display; authorization remains server-side.
+
 import { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 
