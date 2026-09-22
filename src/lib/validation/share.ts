@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const createShareSchema = z
+// These rules define which share type/access type combinations are valid.\nexport const createShareSchema = z
     .object({
         shareType: z.enum(["ONE_TIME", "TIME_BASED"]),
 
@@ -8,7 +8,7 @@ export const createShareSchema = z
 
         expiresAt: z.string().datetime().optional(),
     })
-    .superRefine((data, ctx) => {
+    // Expiry depends on shareType, so this cross-field rule belongs here.\n    .superRefine((data, ctx) => {
         if (data.shareType === "TIME_BASED" && !data.expiresAt) {
             ctx.addIssue({
                 code: "custom",
