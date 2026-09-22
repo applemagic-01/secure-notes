@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+
 import {
     Check,
     CheckCircle2,
@@ -41,11 +42,19 @@ export function ShareSuccess({
 
             if (type === "url") {
                 setCopiedUrl(true);
-                setTimeout(() => setCopiedUrl(false), 2000);
+
+                setTimeout(() => {
+                    setCopiedUrl(false);
+                }, 2000);
+
                 toast.success("Share link copied.");
             } else {
                 setCopiedKey(true);
-                setTimeout(() => setCopiedKey(false), 2000);
+
+                setTimeout(() => {
+                    setCopiedKey(false);
+                }, 2000);
+
                 toast.success("Access key copied.");
             }
         } catch {
@@ -123,7 +132,7 @@ export function ShareSuccess({
 
                                     <div className="mt-2 flex gap-2">
                                         <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-amber-300/10 bg-black/10 px-3 py-2.5">
-                                            <p className="truncate font-mono text-xs text-white/70">
+                                            <p className="truncate font-mono text-xs tracking-wider text-white/70">
                                                 {accessKey}
                                             </p>
                                         </div>
@@ -147,7 +156,7 @@ export function ShareSuccess({
                                     </div>
 
                                     <p className="mt-2 text-xs leading-5 text-white/35">
-                                        Keep this key safe. It is shown only once and is
+                                        Save this key now. It is shown only once and is
                                         required to unlock the protected share.
                                     </p>
                                 </div>

@@ -10,7 +10,11 @@ import { setCookie, deleteCookie, getCookie } from "hono/cookie";
 import { createNoteSchema, updateNoteSchema } from "@/lib/validation/note";
 import { createShareSchema } from "@/lib/validation/share";
 import { generateShareToken, hashShareToken } from "@/lib/share/token";
-import { hashAccessKey, verifyAccessKey } from "@/lib/share/access-key";
+import {
+  generateAccessKey,
+  hashAccessKey,
+  verifyAccessKey,
+} from "@/lib/share/access-key";
 import {
   consumeOneTimeShare,
   findShareByToken,
@@ -601,17 +605,19 @@ app.post("/notes/:id/shares", async (c) => {
     const {
       shareType,
       accessType,
-      expiresAt,
-      accessKey,
+      expiresAt
     } = result.data;
 
     const rawToken = generateShareToken();
     const tokenHash = hashShareToken(rawToken);
 
     let passwordHash: string | null = null;
+    let accessKey: string | null = null;
 
-    if (accessType === "PASSWORD" && accessKey) {
+    if (accessType === "PASSWORD") {
+      accessKey = generateAccessKey();
       passwordHash = await hashAccessKey(accessKey);
+      
     }
 
     let parsedExpiresAt: Date | null = null;
@@ -983,8 +989,8 @@ app.post("/share/:token/unlock", async (c) => {
     }
 
     const accessKeyIsValid = await verifyAccessKey(
-      share.passwordHash,
       accessKey,
+      share.passwordHash,
     );
 
     if (!accessKeyIsValid) {

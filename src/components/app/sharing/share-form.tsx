@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
+
 import {
     CalendarClock,
     Clock3,
-    Eye,
-    EyeOff,
     Globe2,
-    KeyRound,
     Link,
     Loader2,
     LockKeyhole,
@@ -22,6 +20,7 @@ import { ShareSuccess } from "@/components/app/sharing/share-success";
 import { toast } from "sonner";
 
 type ShareType = "ONE_TIME" | "TIME_BASED";
+
 type AccessType = "PUBLIC" | "PASSWORD";
 
 interface ShareFormProps {
@@ -37,10 +36,6 @@ export function ShareForm({ noteId }: ShareFormProps) {
 
     const [expiresAt, setExpiresAt] = useState("");
 
-    const [accessKey, setAccessKey] = useState("");
-
-    const [showAccessKey, setShowAccessKey] = useState(false);
-
     const [submitting, setSubmitting] = useState(false);
 
     const [createdShare, setCreatedShare] = useState<{
@@ -53,27 +48,51 @@ export function ShareForm({ noteId }: ShareFormProps) {
     ) {
         event.preventDefault();
 
+        /*
+         * Time-based shares require an expiry value.
+         * The UI already marks the field as required, but we
+         * validate it here as well before sending the request.
+         */
+        if (shareType === "TIME_BASED" && !expiresAt) {
+            toast.error("Please select an expiry date and time.");
+            return;
+        }
+
         setSubmitting(true);
 
         try {
+            /*
+             * The access key is intentionally NOT included here.
+             *
+             * The backend generates the access key securely.
+             * This prevents the client from choosing or storing
+             * the password itself.
+             */
             const payload: {
                 shareType: ShareType;
                 accessType: AccessType;
                 expiresAt?: string;
-                accessKey?: string;
             } = {
                 shareType,
                 accessType,
             };
 
             if (shareType === "TIME_BASED") {
-                payload.expiresAt = new Date(
-                    expiresAt
-                ).toISOString();
-            }
+                const expiryDate = new Date(expiresAt);
 
-            if (accessType === "PASSWORD") {
-                payload.accessKey = accessKey;
+                if (Number.isNaN(expiryDate.getTime())) {
+                    toast.error("Please select a valid expiry date.");
+                    return;
+                }
+
+                if (expiryDate <= new Date()) {
+                    toast.error(
+                        "Expiry date and time must be in the future."
+                    );
+                    return;
+                }
+
+                payload.expiresAt = expiryDate.toISOString();
             }
 
             const response = await fetch(
@@ -88,6 +107,7 @@ export function ShareForm({ noteId }: ShareFormProps) {
             );
 
             const data = await response.json();
+
             console.log("Create share response:", data);
 
             if (!response.ok) {
@@ -95,18 +115,44 @@ export function ShareForm({ noteId }: ShareFormProps) {
                     data.error ??
                     "Unable to create share link."
                 );
+
+                return;
+            }
+
+            /*
+             * The API response has this structure:
+             *
+             * {
+             *   share: {
+             *     shareUrl: "...",
+             *     accessKey: "..."
+             *   }
+             * }
+             *
+             * The access key is only returned at creation time.
+             */
+            if (!data.share?.shareUrl) {
+                toast.error(
+                    "Share link was created but the response was invalid."
+                );
+
                 return;
             }
 
             setCreatedShare({
                 shareUrl: data.share.shareUrl,
-                accessKey: data.accessKey,
+                accessKey: data.share.accessKey,
             });
 
             toast.success(
                 "Share link created successfully."
             );
-        } catch {
+        } catch (error) {
+            console.error(
+                "Create share error:",
+                error
+            );
+
             toast.error(
                 "Something went wrong while creating the share link."
             );
@@ -128,11 +174,9 @@ export function ShareForm({ noteId }: ShareFormProps) {
                 accessKey={createdShare.accessKey}
                 onCreateAnother={() => {
                     setCreatedShare(null);
-                    setAccessKey("");
                     setExpiresAt("");
                     setShareType("ONE_TIME");
                     setAccessType("PUBLIC");
-                    setShowAccessKey(false);
                 }}
             />
         );
@@ -202,8 +246,8 @@ export function ShareForm({ noteId }: ShareFormProps) {
                                         </p>
 
                                         <p className="mt-1 text-xs leading-5 text-white/40">
-                                            The link becomes invalid after the first
-                                            successful access.
+                                            The link becomes invalid after the
+                                            first successful access.
                                         </p>
                                     </div>
                                 </div>
@@ -236,8 +280,8 @@ export function ShareForm({ noteId }: ShareFormProps) {
                                         </p>
 
                                         <p className="mt-1 text-xs leading-5 text-white/40">
-                                            The link remains available until the
-                                            selected expiry time.
+                                            The link remains available until
+                                            the selected expiry time.
                                         </p>
                                     </div>
                                 </div>
@@ -260,7 +304,8 @@ export function ShareForm({ noteId }: ShareFormProps) {
                                     </label>
 
                                     <p className="mt-1 text-xs text-white/40">
-                                        The link will stop working after this time.
+                                        The link will stop working after
+                                        this time.
                                     </p>
 
                                     <input
@@ -288,8 +333,8 @@ export function ShareForm({ noteId }: ShareFormProps) {
                             </h2>
 
                             <p className="mt-1 text-xs text-white/40">
-                                Choose whether anyone with the link can access
-                                the note.
+                                Choose whether anyone with the link can
+                                access the note.
                             </p>
                         </div>
 
@@ -299,7 +344,6 @@ export function ShareForm({ noteId }: ShareFormProps) {
                                 type="button"
                                 onClick={() => {
                                     setAccessType("PUBLIC");
-                                    setAccessKey("");
                                 }}
                                 className={`rounded-2xl border p-4 text-left transition ${accessType === "PUBLIC"
                                         ? "border-cyan-400/30 bg-cyan-500/10 shadow-lg shadow-cyan-500/5"
@@ -322,14 +366,14 @@ export function ShareForm({ noteId }: ShareFormProps) {
                                         </p>
 
                                         <p className="mt-1 text-xs leading-5 text-white/40">
-                                            Anyone who has the link can access the
-                                            note.
+                                            Anyone who has the link can
+                                            access the note.
                                         </p>
                                     </div>
                                 </div>
                             </button>
 
-                            {/* Password */}
+                            {/* Password protected */}
                             <button
                                 type="button"
                                 onClick={() =>
@@ -356,7 +400,8 @@ export function ShareForm({ noteId }: ShareFormProps) {
                                         </p>
 
                                         <p className="mt-1 text-xs leading-5 text-white/40">
-                                            Visitors must provide an access key.
+                                            Visitors must provide an
+                                            access key.
                                         </p>
                                     </div>
                                 </div>
@@ -364,67 +409,23 @@ export function ShareForm({ noteId }: ShareFormProps) {
                         </div>
                     </section>
 
-                    {/* Access key */}
+                    {/* Generated access key information */}
                     {accessType === "PASSWORD" && (
                         <GlassPanel className="rounded-2xl border-amber-400/15 bg-amber-500/[0.04] p-4">
                             <div className="flex items-start gap-3">
-                                <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
 
-                                <div className="w-full">
-                                    <label
-                                        htmlFor="accessKey"
-                                        className="text-sm font-medium text-white"
-                                    >
-                                        Access key
-                                    </label>
-
-                                    <p className="mt-1 text-xs leading-5 text-white/40">
-                                        Use at least 8 characters. This key will be
-                                        required to unlock the shared note.
+                                <div>
+                                    <p className="text-sm font-medium text-white">
+                                        Secure access key
                                     </p>
 
-                                    <div className="relative mt-3">
-                                        <input
-                                            id="accessKey"
-                                            type={
-                                                showAccessKey
-                                                    ? "text"
-                                                    : "password"
-                                            }
-                                            value={accessKey}
-                                            onChange={(event) =>
-                                                setAccessKey(
-                                                    event.target.value
-                                                )
-                                            }
-                                            minLength={8}
-                                            maxLength={128}
-                                            required
-                                            placeholder="Enter a secure access key"
-                                            className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 pr-11 text-sm text-white outline-none placeholder:text-white/25 focus:border-amber-400/40 focus:ring-2 focus:ring-amber-500/10"
-                                        />
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setShowAccessKey(
-                                                    (value) => !value
-                                                )
-                                            }
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/35 transition hover:text-white"
-                                            aria-label={
-                                                showAccessKey
-                                                    ? "Hide access key"
-                                                    : "Show access key"
-                                            }
-                                        >
-                                            {showAccessKey ? (
-                                                <EyeOff className="h-4 w-4" />
-                                            ) : (
-                                                <Eye className="h-4 w-4" />
-                                            )}
-                                        </button>
-                                    </div>
+                                    <p className="mt-1 text-xs leading-5 text-white/45">
+                                        A unique access key will be generated
+                                        automatically when you create this
+                                        share link. You will be shown the key
+                                        once after creation.
+                                    </p>
                                 </div>
                             </div>
                         </GlassPanel>
@@ -440,8 +441,9 @@ export function ShareForm({ noteId }: ShareFormProps) {
                             </p>
 
                             <p className="mt-1 text-xs leading-5 text-white/35">
-                                Your share token is generated securely and the
-                                access key is never stored in plain text.
+                                Your share token is generated securely and
+                                password-protected share keys are stored
+                                only as secure hashes.
                             </p>
                         </div>
                     </div>
@@ -449,12 +451,12 @@ export function ShareForm({ noteId }: ShareFormProps) {
 
                 {/* Footer */}
                 <div className="flex flex-col-reverse gap-3 border-t border-white/10 bg-black/5 px-6 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-8">
-                    <Link
+                    <a
                         href={`/notes/${noteId}`}
                         className="inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
                     >
                         Cancel
-                    </Link> 
+                    </a>
 
                     <Button
                         type="submit"
@@ -467,7 +469,10 @@ export function ShareForm({ noteId }: ShareFormProps) {
                                 Creating...
                             </>
                         ) : (
-                            "Create Share Link"
+                            <>
+                                <Link className="mr-2 h-4 w-4" />
+                                Create Share Link
+                            </>
                         )}
                     </Button>
                 </div>
