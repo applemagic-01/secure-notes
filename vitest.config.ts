@@ -4,7 +4,7 @@ import path from "node:path";
 export default defineConfig({
     test: {
         environment: "node",
-        globals: true,
+        globals: true,\n\n        // All integration tests use one test database, so files run sequentially.\n
 
         // Database integration tests share one test database.
         // Run test files sequentially so cleanup in one file
