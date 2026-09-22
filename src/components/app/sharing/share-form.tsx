@@ -1,5 +1,7 @@
 "use client";
 
+// Collects the share policy selected by the note owner and sends it to the sharing API; the server remains responsible for token and key generation.
+
 import { useState } from "react";
 
 import {
