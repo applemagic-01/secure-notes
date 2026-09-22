@@ -34,8 +34,14 @@ import { registerNoteRoutes } from "@/lib/api/notes-routes";
 
 
 
-// Share routes are grouped together because the URL token is the credential and the database decides whether it is still valid.\nfunction registerShareRoutes(\n  app: Hono,\n  db: typeof prisma,\n) {
-  // Metadata only: this endpoint deliberately does not consume a one-time share.\n  // Actual access happens through POST /view after the client knows the access type.\n  app.get("/share/:token", async (c) => {
+// Share routes are grouped together because the URL token is the credential and the database decides whether it is still valid.
+function registerShareRoutes(
+  app: Hono,
+  db: typeof prisma,
+) {
+  // Metadata only: this endpoint deliberately does not consume a one-time share.
+  // Actual access happens through POST /view after the client knows the access type.
+  app.get("/share/:token", async (c) => {
     try {
       const token = c.req.param("token");
 
@@ -103,7 +109,9 @@ import { registerNoteRoutes } from "@/lib/api/notes-routes";
     }
   });
 
-  // Public share consumption happens here instead of GET, avoiding accidental\n  // consumption from prefetching or duplicate development-mode requests.\n  app.post("/share/:token/view", async (c) => {
+  // Public share consumption happens here instead of GET, avoiding accidental
+  // consumption from prefetching or duplicate development-mode requests.
+  app.post("/share/:token/view", async (c) => {
     try {
       const token = c.req.param("token");
 
@@ -127,7 +135,8 @@ import { registerNoteRoutes } from "@/lib/api/notes-routes";
         );
       }
 
-      // A password-protected share must never fall through this public endpoint.\n      if (share.accessType !== "PUBLIC") {
+      // A password-protected share must never fall through this public endpoint.
+      if (share.accessType !== "PUBLIC") {
         return c.json(
           {
             error: "This share requires an access key",
@@ -154,7 +163,9 @@ import { registerNoteRoutes } from "@/lib/api/notes-routes";
         );
       }
 
-      // One-time links are claimed atomically. Time-based links can be viewed\n      // repeatedly, so they only need a validity check plus a counter increment.\n      if (share.shareType === "ONE_TIME") {
+      // One-time links are claimed atomically. Time-based links can be viewed
+      // repeatedly, so they only need a validity check plus a counter increment.
+      if (share.shareType === "ONE_TIME") {
         const consumed = await consumeOneTimeShare(
           share.id,
           db,
@@ -215,13 +226,16 @@ import { registerNoteRoutes } from "@/lib/api/notes-routes";
       );
     }
   });
-  // Password shares verify the access key first. Only a successful verification\n  // can consume a one-time link or count a successful view.\n  app.post("/share/:token/unlock", async (c) => {
+  // Password shares verify the access key first. Only a successful verification
+  // can consume a one-time link or count a successful view.
+  app.post("/share/:token/unlock", async (c) => {
     try {
       const token = c.req.param("token");
 
       const clientIp = getClientIp(c);
 
-      // Rate-limit by IP and by the specific share so repeated guessing is harder.\n      const unlockIpRateLimit = isRateLimited(
+      // Rate-limit by IP and by the specific share so repeated guessing is harder.
+      const unlockIpRateLimit = isRateLimited(
         `unlock:ip:${clientIp}`,
         5,
         15 * 60 * 1000,
@@ -337,7 +351,8 @@ import { registerNoteRoutes } from "@/lib/api/notes-routes";
         );
       }
 
-      // Do the expensive Argon2 check before entering the database transaction.\n      const accessKeyIsValid = await verifyAccessKey(
+      // Do the expensive Argon2 check before entering the database transaction.
+      const accessKeyIsValid = await verifyAccessKey(
         accessKey,
         share.passwordHash,
       );
@@ -415,13 +430,16 @@ import { registerNoteRoutes } from "@/lib/api/notes-routes";
 
 }
 
-// Production Hono application mounted under Next.js' catch-all API route.\nexport const app = new Hono()
+// Production Hono application mounted under Next.js' catch-all API route.
+export const app = new Hono()
   .basePath("/api");
 
-// Production uses the real database. Tests can inject a separate Prisma client.\nregisterShareRoutes(app, prisma);\nregisterNoteRoutes(app, prisma);
+// Production uses the real database. Tests can inject a separate Prisma client.
+registerShareRoutes(app, prisma);
 registerNoteRoutes(app, prisma);
 
-// Test code can reuse these exact share handlers with the isolated test database.\nexport function createShareApp(db: typeof prisma) {
+// Test code can reuse these exact share handlers with the isolated test database.
+export function createShareApp(db: typeof prisma) {
   const shareApp = new Hono()
     .basePath("/api");
 
@@ -439,7 +457,9 @@ app.get("/health", (c) => {
 });
 
 
-// Registration validates input, hashes the password, and creates the account.\n// The original password is never persisted.\napp.post("/auth/register", async (c) => {
+// Registration validates input, hashes the password, and creates the account.
+// The original password is never persisted.
+app.post("/auth/register", async (c) => {
   try {
     const body = await c.req.json();
 
@@ -504,7 +524,8 @@ app.get("/health", (c) => {
   }
 });
 
-// Login validates credentials and creates a server-side session.\napp.post("/auth/login", async (c) => {
+// Login validates credentials and creates a server-side session.
+app.post("/auth/login", async (c) => {
   try {
     const body = await c.req.json();
 
@@ -603,7 +624,9 @@ app.get("/health", (c) => {
 
     const { token } = await createSession(user.id);
 
-    // HttpOnly prevents JavaScript from reading the session token. SameSite=Lax\n    // provides a useful CSRF baseline and Secure is enabled in production.\n    setCookie(c, "session", token, {
+    // HttpOnly prevents JavaScript from reading the session token. SameSite=Lax
+    // provides a useful CSRF baseline and Secure is enabled in production.
+    setCookie(c, "session", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Lax",
@@ -633,7 +656,8 @@ app.get("/health", (c) => {
   }
 });
 
-// The UI uses this endpoint to resolve the current user from the session cookie.\napp.get("/auth/me", async (c) => {
+// The UI uses this endpoint to resolve the current user from the session cookie.
+app.get("/auth/me", async (c) => {
   try {
     const token = getCookie(c, "session");
 
@@ -672,7 +696,8 @@ app.get("/health", (c) => {
   }
 });
 
-// Logout invalidates the server-side session and clears the browser cookie.\napp.post("/auth/logout", async (c) => {
+// Logout invalidates the server-side session and clears the browser cookie.
+app.post("/auth/logout", async (c) => {
   try {
     const token = getCookie(c, "session");
 
@@ -699,7 +724,8 @@ app.get("/health", (c) => {
   }
 });
 
-// Only the note owner can create a share. Secrets are generated on the server.\napp.post("/notes/:id/shares", async (c) => {
+// Only the note owner can create a share. Secrets are generated on the server.
+app.post("/notes/:id/shares", async (c) => {
   try {
     const token = getCookie(c, "session");
 
@@ -755,13 +781,17 @@ app.get("/health", (c) => {
       expiresAt
     } = result.data;
 
-    // Keep the raw token only long enough to build the owner-facing URL.\n    // The database receives only the SHA-256 token hash.\n    const rawToken = generateShareToken();
+    // Keep the raw token only long enough to build the owner-facing URL.
+    // The database receives only the SHA-256 token hash.
+    const rawToken = generateShareToken();
     const tokenHash = hashShareToken(rawToken);
 
     let passwordHash: string | null = null;
     let accessKey: string | null = null;
 
-    // Password shares get a random access key. The owner sees it once;\n    // PostgreSQL stores only its Argon2id hash.\n    if (accessType === "PASSWORD") {
+    // Password shares get a random access key. The owner sees it once;
+    // PostgreSQL stores only its Argon2id hash.
+    if (accessType === "PASSWORD") {
       accessKey = generateAccessKey();
       passwordHash = await hashAccessKey(accessKey);
       
@@ -842,7 +872,8 @@ app.get("/health", (c) => {
 });
 
 
-// Share management is owner-only and never returns raw secrets.\napp.get("/notes/:id/shares", async (c) => {
+// Share management is owner-only and never returns raw secrets.
+app.get("/notes/:id/shares", async (c) => {
   try {
     const sessionToken = getCookie(c, "session");
 
@@ -904,7 +935,8 @@ app.get("/health", (c) => {
 
 
 
-// Revocation is an owner-only state change. Keeping the row preserves its history.\napp.post("/notes/:noteId/shares/:shareId/revoke", async (c) => {
+// Revocation is an owner-only state change. Keeping the row preserves its history.
+app.post("/notes/:noteId/shares/:shareId/revoke", async (c) => {
   const token = getCookie(c, "session");
 
   const user = await getAuthenticatedUser(token);
@@ -965,7 +997,8 @@ app.get("/health", (c) => {
 
 
 
-// Next.js forwards each HTTP method into the same Hono application.\nexport const GET = handle(app);
+// Next.js forwards each HTTP method into the same Hono application.
+export const GET = handle(app);
 export const POST = handle(app);
 export const PUT = handle(app);
 export const PATCH = handle(app);
