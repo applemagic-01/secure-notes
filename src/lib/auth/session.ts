@@ -3,13 +3,16 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { PrismaClient } from "@/generated/prisma/client";
 
-// Sessions are intentionally short-lived. The browser must authenticate again after this window.\nconst SESSION_DURATION_DAYS = 7;
+// Sessions are intentionally short-lived. The browser must authenticate again after this window.
+const SESSION_DURATION_DAYS = 7;
 
-// The raw token is kept in the browser cookie; only its hash is stored in PostgreSQL.\nexport function generateSessionToken() {
+// The raw token is kept in the browser cookie; only its hash is stored in PostgreSQL.
+export function generateSessionToken() {
     return crypto.randomBytes(32).toString("base64url");
 }
 
-// Hashing means a database leak does not directly reveal a usable session cookie.\nexport function hashSessionToken(token: string) {
+// Hashing means a database leak does not directly reveal a usable session cookie.
+export function hashSessionToken(token: string) {
     return crypto
         .createHash("sha256")
         .update(token)
@@ -36,7 +39,8 @@ export async function createSession(
 
     const expiresAt = getSessionExpiry();
 
-    // Store only the hash. The raw token is returned once so the route can set the cookie.\n    const session = await db.session.create({
+    // Store only the hash. The raw token is returned once so the route can set the cookie.
+    const session = await db.session.create({
         data: {
             userId,
             tokenHash,
@@ -88,7 +92,8 @@ export async function getSessionUser(
         return null;
     }
 
-    // Expiry is enforced on the server, not by trusting the browser clock.\n    if (session.expiresAt <= new Date()) {
+    // Expiry is enforced on the server, not by trusting the browser clock.
+    if (session.expiresAt <= new Date()) {
         await db.session.delete({
             where: {
                 id: session.id,
