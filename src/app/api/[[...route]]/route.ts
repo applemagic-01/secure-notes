@@ -191,7 +191,6 @@ app.post("/auth/login", async (c) => {
     return c.json(
       {
         error: "Unable to login",
-        details: error instanceof Error ? error.message : String(error),
       },
       500,
     );
@@ -833,7 +832,9 @@ app.post("/share/:token/view", async (c) => {
     }
 
     const share = await findShareByToken(token);
+    
 
+    
     if (!share) {
       return c.json(
         {
@@ -842,6 +843,16 @@ app.post("/share/:token/view", async (c) => {
         404,
       );
     }
+
+    if (share.accessType !== "PUBLIC") {
+      return c.json(
+        {
+          error: "This share requires an access key",
+        },
+        403,
+      );
+    }
+    
 
     if (share.revokedAt) {
       return c.json(
