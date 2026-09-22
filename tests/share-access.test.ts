@@ -1,3 +1,5 @@
+// Covers the security-sensitive share lifecycle: public access, protected access, expiry, revocation, one-time consumption, view counting, and concurrent access.
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { testPrisma } from "./helpers/test-db";
