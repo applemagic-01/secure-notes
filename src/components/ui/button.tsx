@@ -1,3 +1,5 @@
+// Shared button primitive that keeps interaction states and variants consistent across the application.
+
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
