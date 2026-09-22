@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
 
 import { AppShell } from "@/components/app/layout/app-shell";
 import { NoteList } from "@/components/app/notes/note-list";
-import { Button } from "@/components/ui/button";
 
 export default function NotesPage() {
     return (
