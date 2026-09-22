@@ -8,7 +8,8 @@ import {
     updateNoteSchema,
 } from "@/lib/validation/note";
 
-// Keeping route registration separate lets production and tests share the same authorization and database behavior.\nexport function registerNoteRoutes(
+// Keeping route registration separate lets production and tests share the same authorization and database behavior.
+export function registerNoteRoutes(
     app: Hono,
     db: typeof prisma,
 ) {
@@ -16,7 +17,8 @@ import {
         try {
             const token = getCookie(c, "session");
 
-            // The authenticated user comes from the server-side session, never from request data.\n            const user = await getAuthenticatedUser(token, db);
+            // The authenticated user comes from the server-side session, never from request data.
+            const user = await getAuthenticatedUser(token, db);
 
             if (!user) {
                 return c.json(
@@ -29,7 +31,8 @@ import {
 
             const body = await c.req.json();
 
-            // Validate again on the server even if the frontend already validates the form.\n            const result = createNoteSchema.safeParse(body);
+            // Validate again on the server even if the frontend already validates the form.
+            const result = createNoteSchema.safeParse(body);
 
             if (!result.success) {
                 return c.json(
@@ -94,7 +97,8 @@ import {
                 );
             }
 
-            // userId is part of authorization here, not just a filter. It prevents users from seeing someone else's notes.\n            const notes = await db.note.findMany({
+            // userId is part of authorization here, not just a filter. It prevents users from seeing someone else's notes.
+            const notes = await db.note.findMany({
                 where: {
                     userId: user.id,
                 },
@@ -142,7 +146,8 @@ import {
 
             const noteId = c.req.param("id");
 
-            // Check the note ID and owner ID together to prevent an IDOR-style access bug.\n            const note = await db.note.findFirst({
+            // Check the note ID and owner ID together to prevent an IDOR-style access bug.
+            const note = await db.note.findFirst({
                 where: {
                     id: noteId,
                     userId: user.id,
@@ -211,7 +216,8 @@ import {
                 );
             }
 
-            // Include ownership in the database UPDATE itself so another user's note cannot be modified.\n            const updated = await db.note.updateMany({
+            // Include ownership in the database UPDATE itself so another user's note cannot be modified.
+            const updated = await db.note.updateMany({
                 where: {
                     id: noteId,
                     userId: user.id,
@@ -274,7 +280,8 @@ import {
 
             const noteId = c.req.param("id");
 
-            // The owner check also protects deletion. Prisma cascades dependent share records.\n            const deleted = await db.note.deleteMany({
+            // The owner check also protects deletion. Prisma cascades dependent share records.
+            const deleted = await db.note.deleteMany({
                 where: {
                     id: noteId,
                     userId: user.id,
