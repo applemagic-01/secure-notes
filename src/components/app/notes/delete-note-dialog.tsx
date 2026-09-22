@@ -1,5 +1,7 @@
 "use client";
 
+// Confirms destructive note deletion and keeps the user informed while the server request is in progress.
+
 import {
     AlertTriangle,
     Loader2,
