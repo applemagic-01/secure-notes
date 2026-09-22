@@ -1,5 +1,7 @@
 import crypto from "crypto";
+
 import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@/generated/prisma/client";
 
 const SESSION_DURATION_DAYS = 7;
 
@@ -17,17 +19,24 @@ export function hashSessionToken(token: string) {
 export function getSessionExpiry() {
     const expiry = new Date();
 
-    expiry.setDate(expiry.getDate() + SESSION_DURATION_DAYS);
+    expiry.setDate(
+        expiry.getDate() + SESSION_DURATION_DAYS,
+    );
 
     return expiry;
 }
 
-export async function createSession(userId: string) {
+export async function createSession(
+    userId: string,
+    db: PrismaClient = prisma,
+) {
     const token = generateSessionToken();
+
     const tokenHash = hashSessionToken(token);
+
     const expiresAt = getSessionExpiry();
 
-    const session = await prisma.session.create({
+    const session = await db.session.create({
         data: {
             userId,
             tokenHash,
@@ -41,21 +50,26 @@ export async function createSession(userId: string) {
     };
 }
 
-export async function deleteSession(token: string) {
+export async function deleteSession(
+    token: string,
+    db: PrismaClient = prisma,
+) {
     const tokenHash = hashSessionToken(token);
 
-    await prisma.session.deleteMany({
+    await db.session.deleteMany({
         where: {
             tokenHash,
         },
     });
 }
 
-
-export async function getSessionUser(token: string) {
+export async function getSessionUser(
+    token: string,
+    db: PrismaClient = prisma,
+) {
     const tokenHash = hashSessionToken(token);
 
-    const session = await prisma.session.findUnique({
+    const session = await db.session.findUnique({
         where: {
             tokenHash,
         },
@@ -75,7 +89,7 @@ export async function getSessionUser(token: string) {
     }
 
     if (session.expiresAt <= new Date()) {
-        await prisma.session.delete({
+        await db.session.delete({
             where: {
                 id: session.id,
             },
@@ -87,10 +101,13 @@ export async function getSessionUser(token: string) {
     return session.user;
 }
 
-export async function getAuthenticatedUser(token: string | undefined) {
+export async function getAuthenticatedUser(
+    token: string | undefined,
+    db: PrismaClient = prisma,
+) {
     if (!token) {
         return null;
     }
 
-    return getSessionUser(token);
+    return getSessionUser(token, db);
 }

@@ -16,6 +16,11 @@ import {
 import { createShareApp } from "@/app/api/[[...route]]/route";
 
 import { generateShareToken, hashShareToken } from "@/lib/share/token";
+import {
+    generateSessionToken,
+    hashSessionToken,
+    getSessionExpiry,
+} from "@/lib/auth/session";
 
 
 
@@ -872,3 +877,452 @@ it("rate-limits repeated invalid access-key attempts", async () => {
     expect(shareAfterAttempts?.viewCount).toBe(0);
     expect(shareAfterAttempts?.usedAt).toBeNull();
 });
+
+it("prevents one user from accessing another user's note", async () => {
+    const timestamp = Date.now();
+
+    const userA = await testPrisma.user.create({
+        data: {
+            email: `idor-a-${timestamp}@example.com`,
+            passwordHash: "test-password-hash",
+        },
+    });
+
+    const userB = await testPrisma.user.create({
+        data: {
+            email: `idor-b-${timestamp}@example.com`,
+            passwordHash: "test-password-hash",
+        },
+    });
+
+    const noteB = await testPrisma.note.create({
+        data: {
+            userId: userB.id,
+            title: "User B Private Note",
+            content: "This must never be visible to User A.",
+        },
+    });
+
+    const app = createShareApp(testPrisma);
+
+
+    const sessionToken = generateSessionToken();
+
+    await testPrisma.session.create({
+        data: {
+            userId: userA.id,
+            tokenHash: hashSessionToken(sessionToken),
+            expiresAt: getSessionExpiry(),
+        },
+    });
+
+    const response = await app.request(
+        `/api/notes/${noteB.id}`,
+        {
+            method: "GET",
+            headers: {
+                Cookie: `session=${sessionToken}`,
+            },
+        },
+    );
+
+    expect(response.status).toBe(404);
+
+    const deleteResponse = await app.request(
+        `/api/notes/${noteB.id}`,
+        {
+            method: "DELETE",
+            headers: {
+                Cookie: `session=${sessionToken}`,
+            },
+        },
+    );
+
+    expect(deleteResponse.status).toBe(404);
+
+    const noteAfterDelete =
+        await testPrisma.note.findUnique({
+            where: {
+                id: noteB.id,
+            },
+        });
+
+    expect(noteAfterDelete).not.toBeNull();
+
+
+    const createShareResponse = await app.request(
+        `/api/notes/${noteB.id}/shares`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Cookie: `session=${sessionToken}`,
+            },
+            body: JSON.stringify({
+                shareType: "ONE_TIME",
+                accessType: "PUBLIC",
+            }),
+        },
+    );
+
+    expect(createShareResponse.status).toBe(404);
+
+    const sharesAfterAttempt =
+        await testPrisma.shareLink.count({
+            where: {
+                noteId: noteB.id,
+            },
+        });
+
+    expect(sharesAfterAttempt).toBe(0);
+
+
+    const userBAccessKey = generateAccessKey();
+
+    const userBShare = await testPrisma.shareLink.create({
+        data: {
+            noteId: noteB.id,
+            tokenHash: hashShareToken(
+                generateShareToken(),
+            ),
+            shareType: "ONE_TIME",
+            accessType: "PASSWORD",
+            passwordHash: await hashAccessKey(
+                userBAccessKey,
+            ),
+        },
+    });
+
+
+    const listSharesResponse = await app.request(
+        `/api/notes/${noteB.id}/shares`,
+        {
+            method: "GET",
+            headers: {
+                Cookie: `session=${sessionToken}`,
+            },
+        },
+    );
+
+    expect(listSharesResponse.status).toBe(404);
+
+
+
+    const revokeResponse = await app.request(
+        `/api/notes/${noteB.id}/shares/${userBShare.id}/revoke`,
+        {
+            method: "POST",
+            headers: {
+                Cookie: `session=${sessionToken}`,
+            },
+        },
+    );
+
+    expect(revokeResponse.status).toBe(404);
+
+    const shareAfterRevoke =
+        await testPrisma.shareLink.findUnique({
+            where: {
+                id: userBShare.id,
+            },
+        });
+
+    expect(shareAfterRevoke?.revokedAt).toBeNull();
+
+    
+});
+
+
+it("does not consume a one-time share during metadata lookup", async () => {
+    const user = await testPrisma.user.create({
+        data: {
+            email: `metadata-${Date.now()}@example.com`,
+            passwordHash: "test-password-hash",
+        },
+    });
+
+    const note = await testPrisma.note.create({
+        data: {
+            userId: user.id,
+            title: "Metadata Test",
+            content: "Metadata should not consume this.",
+        },
+    });
+
+    const rawToken = generateShareToken();
+
+    const share = await testPrisma.shareLink.create({
+        data: {
+            noteId: note.id,
+            tokenHash: hashShareToken(rawToken),
+            shareType: "ONE_TIME",
+            accessType: "PUBLIC",
+        },
+    });
+
+    const app = createShareApp(testPrisma);
+
+    const response = await app.request(
+        `/api/share/${rawToken}`,
+    );
+
+    expect(response.status).toBe(200);
+
+    const storedShare =
+        await testPrisma.shareLink.findUnique({
+            where: {
+                id: share.id,
+            },
+        });
+
+    expect(storedShare?.usedAt).toBeNull();
+    expect(storedShare?.viewCount).toBe(0);
+});
+
+
+it("rejects password-protected shares through the public view endpoint", async () => {
+    const user = await testPrisma.user.create({
+        data: {
+            email: `view-password-${Date.now()}@example.com`,
+            passwordHash: "test-password-hash",
+        },
+    });
+
+    const note = await testPrisma.note.create({
+        data: {
+            userId: user.id,
+            title: "Protected View",
+            content: "This requires a key.",
+        },
+    });
+
+    const accessKey = generateAccessKey();
+
+    const rawToken = generateShareToken();
+
+    const share = await testPrisma.shareLink.create({
+        data: {
+            noteId: note.id,
+            tokenHash: hashShareToken(rawToken),
+            shareType: "ONE_TIME",
+            accessType: "PASSWORD",
+            passwordHash: await hashAccessKey(
+                accessKey,
+            ),
+        },
+    });
+
+    const app = createShareApp(testPrisma);
+
+    const response = await app.request(
+        `/api/share/${rawToken}/view`,
+        {
+            method: "POST",
+        },
+    );
+
+    expect(response.status).toBe(403);
+
+    const storedShare =
+        await testPrisma.shareLink.findUnique({
+            where: {
+                id: share.id,
+            },
+        });
+
+    expect(storedShare?.usedAt).toBeNull();
+    expect(storedShare?.viewCount).toBe(0);
+});
+
+
+it("rejects an unknown share token", async () => {
+    const app = createShareApp(testPrisma);
+
+    const response = await app.request(
+        "/api/share/this-token-does-not-exist",
+    );
+
+    expect(response.status).toBe(404);
+
+    const body = await response.json();
+
+    expect(body.error).toBe(
+        "Share link not found",
+    );
+}); 
+
+
+it("rejects a password unlock request without an access key", async () => {
+    const user = await testPrisma.user.create({
+        data: {
+            email: `missing-key-${Date.now()}@example.com`,
+            passwordHash: "test-password-hash",
+        },
+    });
+
+    const note = await testPrisma.note.create({
+        data: {
+            userId: user.id,
+            title: "Missing Key Test",
+            content: "Access key required.",
+        },
+    });
+
+    const rawToken = generateShareToken();
+
+    await testPrisma.shareLink.create({
+        data: {
+            noteId: note.id,
+            tokenHash: hashShareToken(rawToken),
+            shareType: "ONE_TIME",
+            accessType: "PASSWORD",
+            passwordHash: await hashAccessKey(
+                generateAccessKey(),
+            ),
+        },
+    });
+
+    const app = createShareApp(testPrisma);
+
+    const response = await app.request(
+        `/api/share/${rawToken}/unlock`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({}),
+        },
+    );
+
+    expect(response.status).toBe(400);
+});
+
+
+it("rejects an expired password-protected share", async () => {
+    const user = await testPrisma.user.create({
+        data: {
+            email: `expired-password-${Date.now()}@example.com`,
+            passwordHash: "test-password-hash",
+        },
+    });
+
+    const note = await testPrisma.note.create({
+        data: {
+            userId: user.id,
+            title: "Expired Password Share",
+            content: "Expired.",
+        },
+    });
+
+    const accessKey = generateAccessKey();
+    const rawToken = generateShareToken();
+
+    const share = await testPrisma.shareLink.create({
+        data: {
+            noteId: note.id,
+            tokenHash: hashShareToken(rawToken),
+            shareType: "TIME_BASED",
+            accessType: "PASSWORD",
+            passwordHash: await hashAccessKey(
+                accessKey,
+            ),
+            expiresAt: new Date(
+                Date.now() - 1000,
+            ),
+        },
+    });
+
+    const app = createShareApp(testPrisma);
+
+    const response = await app.request(
+        `/api/share/${rawToken}/unlock`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                accessKey,
+            }),
+        },
+    );
+
+    expect(response.status).toBe(410);
+
+    const storedShare =
+        await testPrisma.shareLink.findUnique({
+            where: {
+                id: share.id,
+            },
+        });
+
+    expect(storedShare?.viewCount).toBe(0);
+});
+
+
+
+it("rejects a revoked password-protected share", async () => {
+    const user = await testPrisma.user.create({
+        data: {
+            email: `revoked-password-${Date.now()}@example.com`,
+            passwordHash: "test-password-hash",
+        },
+    });
+
+    const note = await testPrisma.note.create({
+        data: {
+            userId: user.id,
+            title: "Revoked Password Share",
+            content: "Revoked.",
+        },
+    });
+
+    const accessKey = generateAccessKey();
+    const rawToken = generateShareToken();
+
+    const share = await testPrisma.shareLink.create({
+        data: {
+            noteId: note.id,
+            tokenHash: hashShareToken(rawToken),
+            shareType: "TIME_BASED",
+            accessType: "PASSWORD",
+            passwordHash: await hashAccessKey(
+                accessKey,
+            ),
+            expiresAt: new Date(
+                Date.now() + 60 * 60 * 1000,
+            ),
+            revokedAt: new Date(),
+        },
+    });
+
+    const app = createShareApp(testPrisma);
+
+    const response = await app.request(
+        `/api/share/${rawToken}/unlock`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                accessKey,
+            }),
+        },
+    );
+
+    expect(response.status).toBe(410);
+
+    const storedShare =
+        await testPrisma.shareLink.findUnique({
+            where: {
+                id: share.id,
+            },
+        });
+
+    expect(storedShare?.viewCount).toBe(0);
+});
+
+
+
