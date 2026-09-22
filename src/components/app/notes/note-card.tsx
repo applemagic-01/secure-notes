@@ -1,3 +1,5 @@
+// Presents a compact summary of one note and keeps navigation to the full note view simple.
+
 import Link from "next/link";
 import { FileText } from "lucide-react";
 
