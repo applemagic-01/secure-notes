@@ -7,17 +7,20 @@ datasource db {
   provider = "postgresql"
 }
 
-// A share is either consumed once or remains usable until its deadline.\nenum ShareType {
+// A share is either consumed once or remains usable until its deadline.
+enum ShareType {
   ONE_TIME
   TIME_BASED
 }
 
-// Public links need only the secret URL; password links also require an access key.\nenum AccessType {
+// Public links need only the secret URL; password links also require an access key.
+enum AccessType {
   PUBLIC
   PASSWORD
 }
 
-// A user owns notes and authenticated sessions.\nmodel User {
+// A user owns notes and authenticated sessions.
+model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
@@ -28,7 +31,8 @@ datasource db {
   sessions     Session[]
 }
 
-// Sessions store only a hash of the browser token.\nmodel Session {
+// Sessions store only a hash of the browser token.
+model Session {
   id        String   @id @default(cuid())
   userId    String
   tokenHash String   @unique
@@ -41,7 +45,8 @@ datasource db {
   @@index([expiresAt])
 }
 
-// Notes are private by default and are exposed through controlled share links.\nmodel Note {
+// Notes are private by default and are exposed through controlled share links.
+model Note {
   id        String   @id @default(cuid())
   userId    String
   title     String
@@ -55,7 +60,8 @@ datasource db {
   @@index([userId])
 }
 
-// ShareLink stores the rules that decide whether a shared URL can be used.\nmodel ShareLink {
+// ShareLink stores the rules that decide whether a shared URL can be used.
+model ShareLink {
   id           String     @id @default(cuid())
   noteId       String
   tokenHash    String     @unique
@@ -76,7 +82,8 @@ datasource db {
   @@index([expiresAt])
 }
 
-// Each successful access creates an audit/event record.\nmodel ViewEvent {
+// Each successful access creates an audit/event record.
+model ViewEvent {
   id          String   @id @default(cuid())
   shareLinkId String
   createdAt   DateTime @default(now())
