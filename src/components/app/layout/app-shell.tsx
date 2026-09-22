@@ -1,3 +1,5 @@
+// Composes the sidebar, header, and scrolling content area into the shared authenticated application layout.
+
 import type { ReactNode } from "react";
 
 import { GlassBackground } from "@/components/app/background/glass-background";
