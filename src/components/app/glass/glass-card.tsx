@@ -1,3 +1,5 @@
+// Reusable glass-surface primitive used for larger content sections and forms.
+
 import { cn } from "@/lib/utils";
 
 interface GlassCardProps {
