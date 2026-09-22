@@ -3,13 +3,13 @@ type RateLimitEntry = {
     resetAt: number;
 };
 
-const attempts = new Map<string, RateLimitEntry>();
+// This in-memory store is enough for the POC. A multi-instance production deployment should use shared storage such as Redis.\nconst attempts = new Map<string, RateLimitEntry>();
 
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 let lastCleanup = Date.now();
 
-function cleanupExpiredEntries() {
+// Periodically remove expired counters so this map does not grow forever.\nfunction cleanupExpiredEntries() {
     const now = Date.now();
 
     if (now - lastCleanup < CLEANUP_INTERVAL_MS) {
@@ -25,7 +25,7 @@ function cleanupExpiredEntries() {
     lastCleanup = now;
 }
 
-export function isRateLimited(
+// Check the current failure window before allowing another authentication attempt.\nexport function isRateLimited(
     key: string,
     maxFailures: number,
     windowMs: number,
@@ -58,7 +58,7 @@ export function isRateLimited(
     };
 }
 
-export function recordRateLimitFailure(
+// Only failed attempts are recorded; successful requests do not consume the failure budget.\nexport function recordRateLimitFailure(
     key: string,
     windowMs: number,
 ) {
