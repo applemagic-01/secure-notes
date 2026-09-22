@@ -1,3 +1,5 @@
+// Small reusable brand component so the application uses the same SecureNotes identity in different layouts.
+
 import { LockKeyhole } from "lucide-react";
 
 interface SecureNotesLogoProps {
