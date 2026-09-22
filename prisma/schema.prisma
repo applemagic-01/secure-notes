@@ -7,17 +7,17 @@ datasource db {
   provider = "postgresql"
 }
 
-enum ShareType {
+// A share is either consumed once or remains usable until its deadline.\nenum ShareType {
   ONE_TIME
   TIME_BASED
 }
 
-enum AccessType {
+// Public links need only the secret URL; password links also require an access key.\nenum AccessType {
   PUBLIC
   PASSWORD
 }
 
-model User {
+// A user owns notes and authenticated sessions.\nmodel User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
@@ -28,7 +28,7 @@ model User {
   sessions     Session[]
 }
 
-model Session {
+// Sessions store only a hash of the browser token.\nmodel Session {
   id        String   @id @default(cuid())
   userId    String
   tokenHash String   @unique
@@ -41,7 +41,7 @@ model Session {
   @@index([expiresAt])
 }
 
-model Note {
+// Notes are private by default and are exposed through controlled share links.\nmodel Note {
   id        String   @id @default(cuid())
   userId    String
   title     String
@@ -55,7 +55,7 @@ model Note {
   @@index([userId])
 }
 
-model ShareLink {
+// ShareLink stores the rules that decide whether a shared URL can be used.\nmodel ShareLink {
   id           String     @id @default(cuid())
   noteId       String
   tokenHash    String     @unique
@@ -76,7 +76,7 @@ model ShareLink {
   @@index([expiresAt])
 }
 
-model ViewEvent {
+// Each successful access creates an audit/event record.\nmodel ViewEvent {
   id          String   @id @default(cuid())
   shareLinkId String
   createdAt   DateTime @default(now())
