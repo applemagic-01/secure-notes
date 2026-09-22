@@ -1,3 +1,5 @@
+// Provides the shared visual background used across the application without putting any business logic into the presentation layer.
+
 export function GlassBackground({
     children,
 }: {
