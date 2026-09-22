@@ -1,5 +1,7 @@
 "use client";
 
+// Displays one note and coordinates its edit, delete, and sharing actions without moving authorization decisions into the UI.
+
 import { useEffect, useState } from "react";
 import {
     ArrowLeft,
