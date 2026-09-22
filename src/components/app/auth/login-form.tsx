@@ -1,5 +1,7 @@
 "use client";
 
+// Handles the client-side login flow: collects credentials, calls the session endpoint, and redirects after successful authentication.
+
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
