@@ -1,3 +1,5 @@
+// Verifies note ownership boundaries so authenticated users cannot read or modify another user's notes.
+
 import { beforeEach, describe, expect, it } from "vitest";
 import { testPrisma } from "./helpers/test-db";
 import { createNoteApp } from "@/lib/api/notes-test-app";
