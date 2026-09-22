@@ -3,13 +3,15 @@ type RateLimitEntry = {
     resetAt: number;
 };
 
-// This in-memory store is enough for the POC. A multi-instance production deployment should use shared storage such as Redis.\nconst attempts = new Map<string, RateLimitEntry>();
+// This in-memory store is enough for the POC. A multi-instance production deployment should use shared storage such as Redis.
+const attempts = new Map<string, RateLimitEntry>();
 
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 let lastCleanup = Date.now();
 
-// Periodically remove expired counters so this map does not grow forever.\nfunction cleanupExpiredEntries() {
+// Periodically remove expired counters so this map does not grow forever.
+function cleanupExpiredEntries() {
     const now = Date.now();
 
     if (now - lastCleanup < CLEANUP_INTERVAL_MS) {
@@ -25,7 +27,8 @@ let lastCleanup = Date.now();
     lastCleanup = now;
 }
 
-// Check the current failure window before allowing another authentication attempt.\nexport function isRateLimited(
+// Check the current failure window before allowing another authentication attempt.
+export function isRateLimited(
     key: string,
     maxFailures: number,
     windowMs: number,
@@ -58,7 +61,8 @@ let lastCleanup = Date.now();
     };
 }
 
-// Only failed attempts are recorded; successful requests do not consume the failure budget.\nexport function recordRateLimitFailure(
+// Only failed attempts are recorded; successful requests do not consume the failure budget.
+export function recordRateLimitFailure(
     key: string,
     windowMs: number,
 ) {
