@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { registerNoteRoutes } from "@/lib/api/notes-routes";
 
-export function createNoteApp(db: PrismaClient) {
+// Tests reuse the real note route registration with a separate test database.\nexport function createNoteApp(db: PrismaClient) {
     const app = new Hono().basePath("/api");
 
     registerNoteRoutes(app, db);
