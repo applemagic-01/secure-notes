@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-// Registration validation runs on the server so the API cannot be bypassed by a custom client.\nexport const registerSchema = z.object({
+// Registration validation runs on the server so the API cannot be bypassed by a custom client.
+export const registerSchema = z.object({
     email: z
         .string()
         .trim()
@@ -13,7 +14,8 @@ import { z } from "zod";
         .max(128, "Password must be at most 128 characters"),
 });
 
-// Login still validates the request shape before we query the database.\nexport const loginSchema = z.object({
+// Login still validates the request shape before we query the database.
+export const loginSchema = z.object({
     email: z
         .string()
         .trim()
