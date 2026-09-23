@@ -33,6 +33,8 @@ The project is intentionally designed as a small but security-conscious applicat
 - [Testing](#testing)
 - [Environment variables](#environment-variables)
 - [Local setup](#local-setup)
+- [Evaluator/demo accounts](#evaluatordemo-accounts)
+- [Evaluator setup and test guide](#evaluator-setup-and-test-guide)
 - [Demo checklist](#demo-checklist)
 - [Security considerations](#security-considerations)
 - [Scaling to 1 million users](#scaling-to-1-million-users)
@@ -1083,6 +1085,307 @@ The project provides:
 - `test:coverage`
 
 The integration tests should use the dedicated test database.
+
+---
+
+# Evaluator/demo accounts
+
+These accounts are intended for **local POC demonstration only**.
+
+They are not production credentials and should not be reused for a deployed production environment.
+
+| Account | Email | Password | Suggested sample data |
+|---|---|---|---|
+| Demo User 1 | `demo.user1@secure-notes.test` | `DemoUser1@SecureNotes2026` | 3 notes |
+| Demo User 2 | `demo.user2@secure-notes.test` | `DemoUser2@SecureNotes2026` | 3 notes |
+
+### Important
+
+The credentials above are documented demo credentials. They are **not database seed credentials** unless the corresponding users have been created in the configured database.
+
+For a fresh database, create both accounts through the application's `/register` page before using them.
+
+This keeps the README reproducible without requiring real passwords or database records to be committed to source control.
+
+---
+
+# Evaluator setup and test guide
+
+This section is intended to let an evaluator go from a fresh clone to a complete functional/security demonstration.
+
+## Step 1 — Configure PostgreSQL
+
+Create:
+
+- one development PostgreSQL database
+- one separate test PostgreSQL database
+
+Configure the connection strings in the local environment file:
+
+```
+DATABASE_URL="your-development-postgresql-connection-string"
+TEST_DATABASE_URL="your-dedicated-test-postgresql-connection-string"
+APP_URL="http://localhost:3000"
+```
+
+Do not commit the environment file.
+
+## Step 2 — Install the project
+
+Install the dependencies defined by `package.json`.
+
+Then prepare Prisma using the repository's migration files and generated client.
+
+The repository already contains the Prisma schema and migrations, so an evaluator does not need to manually recreate the database tables.
+
+## Step 3 — Start the application
+
+Start the Next.js development server using the `dev` script from `package.json`.
+
+Open:
+
+```
+http://localhost:3000
+```
+
+The landing page provides links to registration and login.
+
+## Step 4 — Create the two demo users
+
+If the database is fresh, create:
+
+### Demo User 1
+
+```
+Email: demo.user1@secure-notes.test
+Password: DemoUser1@SecureNotes2026
+```
+
+### Demo User 2
+
+```
+Email: demo.user2@secure-notes.test
+Password: DemoUser2@SecureNotes2026
+```
+
+Register both through the normal application UI.
+
+This also demonstrates that account creation and password hashing work through the same production route used by real users.
+
+## Step 5 — Add sample notes
+
+Log in as Demo User 1 and create three notes.
+
+Suggested notes:
+
+### Note 1 — API Architecture
+
+```
+Title: API Architecture
+
+Content:
+Secure Notes uses Next.js for the application layer,
+Hono for API routing, Prisma for database access,
+and PostgreSQL as the source of truth.
+```
+
+### Note 2 — Security Design
+
+```
+Title: Security Design
+
+Content:
+Passwords and share access keys use Argon2id.
+Share and session tokens are generated with secure randomness
+and only their hashes are persisted.
+```
+
+### Note 3 — Concurrency
+
+```
+Title: One-Time Share Concurrency
+
+Content:
+One-time share consumption uses a conditional database update
+so concurrent requests cannot both successfully consume the link.
+```
+
+Then log in as Demo User 2 and create three different notes.
+
+Suggested notes:
+
+### Note 1 — Private Note
+
+```
+Title: Private Note
+
+Content:
+This note belongs to Demo User 2 and should not be visible
+from Demo User 1's authenticated account.
+```
+
+### Note 2 — Sharing Test
+
+```
+Title: Sharing Test
+
+Content:
+This note can be used to demonstrate public and password-protected
+sharing behavior.
+```
+
+### Note 3 — Expiry Test
+
+```
+Title: Expiry Test
+
+Content:
+This note can be used to demonstrate a time-based share
+and server-side expiry enforcement.
+```
+
+## Step 6 — Verify authorization
+
+While logged in as Demo User 1:
+
+1. Confirm User 1 sees only User 1's notes.
+2. Confirm User 2's notes are not listed.
+3. If testing through the API, use a User 2 note ID with User 1's session.
+4. Confirm the server rejects access.
+
+This demonstrates that authorization is based on the authenticated session rather than a client-supplied user ID.
+
+## Step 7 — Test public one-time sharing
+
+Using one of the demo notes:
+
+1. Create a **One-time + Public** share.
+2. Copy the generated share URL.
+3. Open the URL in a private/incognito browser window.
+4. Confirm the note is displayed.
+5. Open the same URL again.
+6. Confirm the share is no longer usable.
+7. Return to the owner share-management page.
+8. Confirm the successful view count is `1`.
+
+## Step 8 — Test password-protected one-time sharing
+
+1. Create a **One-time + Password** share.
+2. Copy the generated share URL.
+3. Record the generated access key.
+4. Open the URL without being logged in.
+5. Enter an incorrect access key.
+6. Confirm access is rejected.
+7. Confirm the share is still available.
+8. Enter the correct access key.
+9. Confirm the note opens.
+10. Open the URL again.
+11. Confirm the share is now used.
+12. Confirm the view count is `1`.
+
+This demonstrates that failed authentication does not consume a one-time share.
+
+## Step 9 — Test public time-based sharing
+
+1. Create a **Time-based + Public** share.
+2. Set an expiry several minutes in the future.
+3. Open the share.
+4. Confirm the note is displayed.
+5. Open the same URL again before expiry.
+6. Confirm it works again.
+7. Confirm the view count increases for each successful access.
+
+## Step 10 — Test password-protected time-based sharing
+
+1. Create a **Time-based + Password** share.
+2. Set an expiry in the future.
+3. Open the share URL.
+4. Enter the wrong key.
+5. Confirm access is rejected.
+6. Confirm the view count does not increase.
+7. Enter the correct key.
+8. Confirm the note opens.
+9. Open it again before expiry.
+10. Confirm it can be accessed again.
+11. Confirm successful views are counted.
+
+## Step 11 — Test revocation
+
+1. Create an active share.
+2. Copy its URL.
+3. Return to the owner share-management page.
+4. Revoke the share.
+5. Open the old URL.
+6. Confirm access is rejected.
+7. Confirm the share is displayed as revoked in the owner UI.
+
+## Step 12 — Test expiry
+
+For a time-based share:
+
+1. Create a share with a short expiry.
+2. Open it before expiry and confirm it works.
+3. Wait until the expiry passes.
+4. Open the same URL again.
+5. Confirm access is rejected.
+
+The server's current time is authoritative; the browser clock is not trusted.
+
+## Step 13 — Test rate limiting
+
+For a password-protected share:
+
+1. Open the share.
+2. Submit several incorrect access keys.
+3. Continue until the configured rate limit is reached.
+4. Confirm the API returns HTTP `429`.
+5. Confirm the response includes `Retry-After`.
+
+The POC uses an in-memory rate limiter. A production multi-instance deployment should use a shared store such as Redis.
+
+## Step 14 — Run the automated tests
+
+Run the project's test script against the dedicated test database.
+
+The current verified test suite contains:
+
+**42 tests passed with 0 failures.**
+
+The suite covers:
+
+- database connectivity
+- session security
+- note authorization
+- note CRUD behavior
+- public sharing
+- password-protected sharing
+- one-time shares
+- time-based shares
+- expiry
+- revocation
+- view counting
+- view events
+- invalid access keys
+- rate limiting
+- HTTP-level Hono routes
+- concurrent one-time access
+
+## Evaluator quick path
+
+If there is limited time, the following sequence demonstrates most of the important functionality:
+
+1. Register/login as Demo User 1.
+2. Create a note.
+3. Create a public one-time share.
+4. Open it twice and show that only the first access succeeds.
+5. Create a password-protected one-time share.
+6. Show wrong-key rejection followed by successful unlock.
+7. Show the view count.
+8. Create a time-based public share.
+9. Open it more than once.
+10. Revoke another active share.
+11. Run the automated tests.
+12. Show the README sections explaining token hashing, Argon2id, atomic one-time consumption, and rate limiting.
 
 ---
 
