@@ -8,8 +8,6 @@ import {
     FileText,
     LogOut,
     Plus,
-    Settings,
-    User,
 } from "lucide-react";
 
 import { SecureNotesLogo } from "@/components/app/brand/secure-notes-logo";
@@ -25,16 +23,6 @@ const navigation = [
         label: "New Note",
         href: "/notes/new",
         icon: Plus,
-    },
-    {
-        label: "Profile",
-        href: "/profile",
-        icon: User,
-    },
-    {
-        label: "Settings",
-        href: "/settings",
-        icon: Settings,
     },
 ];
 
