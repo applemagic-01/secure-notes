@@ -812,6 +812,19 @@ app.post("/notes/:id/shares", async (c) => {
       }
     }
 
+    const appUrl = process.env.APP_URL;
+
+    if (!appUrl) {
+      console.error("APP_URL is not configured");
+
+      return c.json(
+        {
+          error: "Unable to create share link",
+        },
+        500,
+      );
+    }
+
     const shareLink = await prisma.shareLink.create({
       data: {
         noteId: note.id,
@@ -829,19 +842,6 @@ app.post("/notes/:id/shares", async (c) => {
         createdAt: true,
       },
     });
-
-    const appUrl = process.env.APP_URL;
-
-    if (!appUrl) {
-      console.error("APP_URL is not configured");
-
-      return c.json(
-        {
-          error: "Unable to create share link",
-        },
-        500,
-      );
-    }
 
     const shareUrl = `${appUrl.replace(/\/$/, "")}/share/${rawToken}`;
 
